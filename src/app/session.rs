@@ -1,4 +1,4 @@
-use std::{collections::HashSet, net::SocketAddr, ops::ControlFlow, sync::Arc};
+use std::{collections::HashSet, net::SocketAddr, sync::Arc};
 
 use axum::{
     debug_handler,
@@ -103,7 +103,7 @@ async fn get_session(
             .map(|s| s.to_owned())
             .collect::<Vec<_>>();
 
-        let data = json!(PageData {
+        let _data = json!(PageData {
             members: user_vec,
             expiry: session.expiry
         });

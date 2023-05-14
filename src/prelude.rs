@@ -1,8 +1,8 @@
 use axum::body::BoxBody;
-use axum::headers::Location;
-use axum::http::header::{LOCATION, WWW_AUTHENTICATE};
+
+use axum::http::header::{WWW_AUTHENTICATE};
 use axum::http::{HeaderMap, HeaderValue, Response, StatusCode};
-use axum::response::{AppendHeaders, IntoResponse, Redirect};
+use axum::response::{IntoResponse, Redirect};
 use axum::Json;
 use std::borrow::Cow;
 use std::collections::HashMap;

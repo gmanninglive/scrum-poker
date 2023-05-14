@@ -5,7 +5,6 @@ use std::sync::Arc;
 
 use axum::{
     extract::State,
-    http::StatusCode,
     response::{Html, IntoResponse},
     routing::get,
     Router,
@@ -47,7 +46,7 @@ async fn render_error(State(state): State<Arc<AppState>>, error: Error) -> impl 
         }
     };
 
-    render_html_template(&state.view_env, "error", &data)
+    render_html_template(&state.view_env, "error", data)
 }
 
 fn render_html_template<S>(env: &Environment<'_>, name: &str, ctx: S) -> Result<Html<String>>
