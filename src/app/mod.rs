@@ -12,6 +12,7 @@ use axum::{
 };
 use minijinja::Environment;
 use serde::Serialize;
+use serde_json::json;
 use tower_http::services::ServeDir;
 use ws::ws_handler;
 
@@ -20,22 +21,33 @@ use crate::AppState;
 
 pub fn router() -> Router<Arc<AppState>> {
     Router::new()
-        .fallback(not_found)
+        .route(
+            "/500",
+            get(|s| async { render_error(s, Error::ServerError("")).await }),
+        )
+        .fallback(|s| async { render_error(s, Error::NotFound("")).await })
         .nest_service("/assets", ServeDir::new("assets"))
         .merge(session::router())
         .route("/ws/:id", get(ws_handler))
-        .route("/500", get(server_error))
 }
 
-async fn not_found(State(state): State<Arc<AppState>>) -> impl IntoResponse {
-    (
-        StatusCode::NOT_FOUND,
-        render_html_template(&state.view_env, "404", ()),
-    )
-}
+async fn render_error(State(state): State<Arc<AppState>>, error: Error) -> impl IntoResponse {
+    let data = match error {
+        Error::NotFound(_) => {
+            json!({
+                "title": "Page not found",
+                "message": "Sorry, we couldn't find the page you're looking for.",
+                "status": 404})
+        }
+        _ => {
+            json!({
+        "title": "Internal Server Error",
+        "message": "Sorry, an error occured on the server.",
+        "status": 500})
+        }
+    };
 
-async fn server_error(State(state): State<Arc<AppState>>) -> impl IntoResponse {
-    render_html_template(&state.view_env, "404", ())
+    render_html_template(&state.view_env, "error", &data)
 }
 
 fn render_html_template<S>(env: &Environment<'_>, name: &str, ctx: S) -> Result<Html<String>>

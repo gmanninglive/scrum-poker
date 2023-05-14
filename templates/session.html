@@ -1,8 +1,8 @@
 {% extends "layout" %} {% block content %}
 <script type="module" src="/assets/script.js"></script>
-<div class="grid gap-12">
+<div class="grid gap-12 w-full max-w-screen-lg mx-auto">
   <div>
-    <h1 class="text-4xl">Session Name</h1>
+    <h1 class="text-4xl font-black">Session Name</h1>
   </div>
   <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
     {% for card in cards %}
@@ -70,9 +70,7 @@
       <p
         class="font-medium text-gray-900 hover:text-gray-600"
         id="user_vote_display"
-      >
-        Voted 2
-      </p>
+      ></p>
     </div>
   </li>
 </template>

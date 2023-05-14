@@ -1,6 +1,7 @@
 import Cookie from "https://cdn.jsdelivr.net/npm/js-cookie@3.0.5/+esm";
 
 let user_list = [];
+let votes = {};
 
 const id = window.location.pathname.replace("/session/", "");
 const edit_user_form = document.getElementById("edit_user_form");
@@ -39,8 +40,17 @@ function init_ws(username) {
     console.log("Message from server ", event.data);
 
     const data = JSON.parse(event.data);
-    user_list = data.users || [];
+    switch (data.type) {
+      case "user_voted": {
+        const { payload } = data;
+        votes[payload.username] = payload.vote;
+        break;
+      }
+      default: {
+      }
+    }
 
+    user_list = data.users || [];
     render_user_list();
   });
 
@@ -60,30 +70,10 @@ function render_user_list() {
 
     template.firstElementChild.innerText = user;
 
+    const vote_display = template.lastElementChild.firstElementChild;
+    const vote = votes[user];
+    vote_display.innerText = vote ? `Voted ${vote}` : "Voting...";
+
     user_list_container.appendChild(template);
   });
 }
-
-// websocket.onopen = function () {
-//   console.log("connection opened");
-//   websocket.send(username.value);
-// };
-
-// const btn = this;
-
-// websocket.onclose = function () {
-//   console.log("connection closed");
-//   btn.disabled = false;
-// };
-
-// websocket.onmessage = function (e) {
-//   console.log("received message: " + e.data);
-//   textarea.value += e.data + "\r\n";
-// };
-
-// input.onkeydown = function (e) {
-//   if (e.key == "Enter") {
-//     websocket.send(input.value);
-//     input.value = "";
-//   }
-// };
