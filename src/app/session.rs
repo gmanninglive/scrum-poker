@@ -20,6 +20,8 @@ use uuid::Uuid;
 use crate::prelude::*;
 use crate::AppState;
 
+use super::render_html_template;
+
 pub const USER_COOKIE: &str = "sp_user";
 fn set_user_cookie(user_name: String) -> (HeaderName, String) {
     (SET_COOKIE, format!("{USER_COOKIE}={user_name}"))
@@ -33,12 +35,7 @@ pub fn router() -> Router<Arc<AppState>> {
 }
 
 async fn new_session(State(state): State<Arc<AppState>>) -> impl IntoResponse {
-    let data = json!({
-        "title": "Example 1",
-        "parent": "layout"
-    });
-
-    Html(state.views.render("session_form", &data).unwrap())
+    render_html_template(&state.view_env, "index", ())
 }
 
 #[derive(Debug, Deserialize)]
@@ -117,7 +114,7 @@ async fn get_session(
             "cards": [1, 2, 3, 5, 8, 12],
         });
 
-        Ok(Html(state.views.render("session_show", &data).unwrap()))
+        render_html_template(&state.view_env, "session_show", data)
     } else {
         Err(Error::NotFound("Not Found"))
     }

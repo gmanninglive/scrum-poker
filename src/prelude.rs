@@ -1,7 +1,8 @@
 use axum::body::BoxBody;
-use axum::http::header::WWW_AUTHENTICATE;
+use axum::headers::Location;
+use axum::http::header::{LOCATION, WWW_AUTHENTICATE};
 use axum::http::{HeaderMap, HeaderValue, Response, StatusCode};
-use axum::response::{IntoResponse, Redirect};
+use axum::response::{AppendHeaders, IntoResponse, Redirect};
 use axum::Json;
 use std::borrow::Cow;
 use std::collections::HashMap;
@@ -30,6 +31,11 @@ pub enum Error {
     #[error("`{0}` not found")]
     #[allow(dead_code)]
     NotFound(&'static str),
+
+    /// Return `500 Internal Server Error`
+    #[error("An error occured: `{0}`")]
+    #[allow(dead_code)]
+    ServerError(&'static str),
 
     /// Return `422 Unprocessable Entity`
     ///
@@ -94,6 +100,7 @@ impl Error {
             Self::Forbidden => StatusCode::FORBIDDEN,
             Self::NotFound { .. } => StatusCode::NOT_FOUND,
             Self::UnprocessableEntity { .. } => StatusCode::UNPROCESSABLE_ENTITY,
+            Self::ServerError { .. } => StatusCode::INTERNAL_SERVER_ERROR,
             Self::Anyhow(_) | Self::Lock(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
@@ -108,6 +115,7 @@ impl IntoResponse for Error {
     fn into_response(self) -> Response<BoxBody> {
         match self {
             Self::NotFound(_) => return Redirect::to("/404").into_response(),
+            Self::ServerError(_) => return Redirect::to("/404").into_response(),
             Self::UnprocessableEntity { errors } => {
                 #[derive(serde::Serialize)]
                 struct Errors {

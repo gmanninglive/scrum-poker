@@ -7,7 +7,8 @@ use axum::{
 };
 
 use futures::{sink::SinkExt, stream::StreamExt};
-use serde_json::json;
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -28,6 +29,7 @@ async fn websocket(stream: WebSocket, state: Arc<AppState>, session_id: Uuid) {
     // By splitting, we can send and receive at the same time.
     let (mut sender, mut receiver) = stream.split();
 
+    let user_vec = get_user_vec(&state, session_id).await;
     // Username gets set in the receive loop, if it's valid.
     let mut username = String::new();
     // Loop until a text message is found.
@@ -42,7 +44,14 @@ async fn websocket(stream: WebSocket, state: Arc<AppState>, session_id: Uuid) {
             } else {
                 // Only send our client that username is taken.
                 let _ = sender
-                    .send(Message::Text(String::from("Username already taken.")))
+                    .send(Message::Text(
+                        json!(WSResponse {
+                            r#type: "error",
+                            payload: json!({ "message": "username taken" }),
+                            users: Some(user_vec),
+                        })
+                        .to_string(),
+                    ))
                     .await;
 
                 return;
@@ -108,8 +117,12 @@ async fn websocket(stream: WebSocket, state: Arc<AppState>, session_id: Uuid) {
         while let Some(Ok(Message::Text(vote))) = receiver.next().await {
             // Add username before message.
             let _ = tx.send(
-                json!({"type": "user_voted", "payload": { "username": name, "vote": vote }, "users": user_vec })
-                    .to_string(),
+                json!(WSResponse {
+                    r#type: "user_voted",
+                    payload: json!({ "username": name, "vote": vote }),
+                    users: Some(user_vec.clone())
+                })
+                .to_string(),
             );
         }
     });
@@ -120,8 +133,18 @@ async fn websocket(stream: WebSocket, state: Arc<AppState>, session_id: Uuid) {
         _ = (&mut recv_task) => send_task.abort(),
     };
 
+    let user_vec = get_user_vec(&state, session_id)
+        .await
+        .into_iter()
+        .filter(|u| u != &username)
+        .collect::<Vec<_>>();
+
     // Send "user left" message (similar to "joined" above).
-    let msg = format!("{} left.", username);
+    let msg = json!(WSResponse {
+        r#type: "user_left",
+        payload: json!({ "user": username }),
+        users: Some(user_vec)
+    });
     tracing::debug!("{}", msg);
     let _ = state
         .sessions
@@ -130,7 +153,7 @@ async fn websocket(stream: WebSocket, state: Arc<AppState>, session_id: Uuid) {
         .get(&session_id)
         .unwrap()
         .tx
-        .send(msg);
+        .send(msg.to_string());
 
     remove_user(&state, session_id, username).await;
 }
@@ -162,4 +185,11 @@ async fn remove_user(state: &Arc<AppState>, session_id: Uuid, username: String) 
         .write()
         .await
         .remove(&username);
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct WSResponse {
+    r#type: &'static str,
+    payload: Value,
+    users: Option<Vec<String>>,
 }

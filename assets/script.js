@@ -1,7 +1,11 @@
 import Cookie from "https://cdn.jsdelivr.net/npm/js-cookie@3.0.5/+esm";
 
+let user_list = [];
+
 const id = window.location.pathname.replace("/session/", "");
 const edit_user_form = document.getElementById("edit_user_form");
+const user_list_container = document.getElementById("user_list_container");
+const user_list_template = document.getElementById("user_node_template");
 
 function get_username() {
   return Cookie.get("sp_user");
@@ -33,6 +37,11 @@ function init_ws(username) {
 
   socket.addEventListener("message", function (event) {
     console.log("Message from server ", event.data);
+
+    const data = JSON.parse(event.data);
+    user_list = data.users || [];
+
+    render_user_list();
   });
 
   document.querySelectorAll("[id^='poker_card_']").forEach((card) => {
@@ -40,6 +49,18 @@ function init_ws(username) {
       e.preventDefault();
       socket.send(card.id.replace("poker_card_", ""));
     });
+  });
+}
+
+function render_user_list() {
+  user_list_container.replaceChildren();
+  user_list.map((user) => {
+    const template =
+      user_list_template.cloneNode(true).content.firstElementChild;
+
+    template.firstElementChild.innerText = user;
+
+    user_list_container.appendChild(template);
   });
 }
 

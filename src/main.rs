@@ -2,7 +2,7 @@ use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 
 use app::session::Session;
 
-use tokio::sync::{Mutex};
+use tokio::sync::Mutex;
 use tower::ServiceBuilder;
 use tower_http::trace::TraceLayer;
 use uuid::Uuid;
@@ -19,7 +19,7 @@ async fn main() {
         .serve(
             app::router()
                 .with_state(Arc::new(AppState {
-                    views: views::init(),
+                    view_env: views::init(),
                     sessions: Mutex::new(HashMap::new()),
                 }))
                 .layer(ServiceBuilder::new().layer(TraceLayer::new_for_http()))
@@ -31,6 +31,6 @@ async fn main() {
 
 // Define your application shared state
 pub struct AppState {
-    pub views: handlebars::Handlebars<'static>,
+    pub view_env: minijinja::Environment<'static>,
     pub sessions: Mutex<HashMap<Uuid, Session>>,
 }
