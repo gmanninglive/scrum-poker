@@ -17,6 +17,9 @@ pub fn init() -> handlebars::Handlebars<'static> {
     handlebars
         .register_template_file("session_show", base_path.join("session/show.hbs"))
         .unwrap();
+    handlebars
+        .register_template_file("404", base_path.join("404.hbs"))
+        .unwrap();
 
     handlebars
 }

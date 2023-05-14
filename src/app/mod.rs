@@ -1,6 +1,8 @@
 pub mod session;
 mod ws;
 
+use std::sync::Arc;
+
 use axum::{
     extract::State,
     response::{Html, IntoResponse},
@@ -8,25 +10,23 @@ use axum::{
     Router,
 };
 use serde_json::json;
-use tower::ServiceBuilder;
-use tower_http::trace::TraceLayer;
+use tower_http::services::ServeDir;
 use ws::ws_handler;
 
 use crate::AppState;
 
-pub fn router() -> Router<AppState> {
+pub fn router() -> Router<Arc<AppState>> {
     Router::new()
-        .route("/", get(home))
-        .nest("/session", session::router())
-        .route("/ws", get(ws_handler))
-        .layer(ServiceBuilder::new().layer(TraceLayer::new_for_http()))
+        .fallback(render_404)
+        .nest_service("/assets", ServeDir::new("assets"))
+        .merge(session::router())
+        .route("/ws/:id", get(ws_handler))
 }
 
-async fn home(State(state): State<AppState>) -> impl IntoResponse {
+async fn render_404(State(state): State<Arc<AppState>>) -> impl IntoResponse {
     let data = json!({
-        "title": "Example 1",
         "parent": "layout"
     });
 
-    Html(state.views.render("index", &data).unwrap())
+    Html(state.views.render("404", &data).unwrap())
 }

@@ -1,27 +1,38 @@
+use std::{collections::HashSet, net::SocketAddr, ops::ControlFlow, sync::Arc};
+
 use axum::{
-    extract::{Path, State},
-    headers::Location,
-    http::{HeaderValue, StatusCode},
-    response::{Html, IntoResponse, Redirect},
-    routing::{delete, get, post},
-    Form, Router, TypedHeader,
+    debug_handler,
+    extract::{ConnectInfo, Path, State},
+    http::{
+        header::{LOCATION, SET_COOKIE},
+        HeaderName, StatusCode,
+    },
+    response::{AppendHeaders, Html, IntoResponse},
+    routing::{get, post},
+    Form, Router,
 };
+use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use tokio::sync::{broadcast, RwLock};
 use uuid::Uuid;
 
 use crate::prelude::*;
 use crate::AppState;
 
-pub fn router() -> Router<AppState> {
-    Router::new()
-        .route("/", get(new_session))
-        .route("/create", post(create_session))
-        .route("/delete", delete(delete_session))
-        .route("/:id", get(get_session))
+pub const USER_COOKIE: &str = "sp_user";
+fn set_user_cookie(user_name: String) -> (HeaderName, String) {
+    (SET_COOKIE, format!("{USER_COOKIE}={user_name}"))
 }
 
-async fn new_session(State(state): State<AppState>) -> impl IntoResponse {
+pub fn router() -> Router<Arc<AppState>> {
+    Router::new()
+        .route("/", get(new_session))
+        .route("/session", post(create_session))
+        .route("/session/:id", get(get_session).delete(delete_session))
+}
+
+async fn new_session(State(state): State<Arc<AppState>>) -> impl IntoResponse {
     let data = json!({
         "title": "Example 1",
         "parent": "layout"
@@ -30,50 +41,80 @@ async fn new_session(State(state): State<AppState>) -> impl IntoResponse {
     Html(state.views.render("session_form", &data).unwrap())
 }
 
+#[derive(Debug, Deserialize)]
+struct CreateSession {
+    display_name: String,
+}
+
+#[debug_handler]
 async fn create_session(
-    State(state): State<AppState>,
-    Form(form): Form<Member>,
+    State(state): State<Arc<AppState>>,
+    ConnectInfo(_addr): ConnectInfo<SocketAddr>,
+    Form(form): Form<CreateSession>,
 ) -> impl IntoResponse {
-    let mut sessions = state.sessions.write().unwrap();
-    let id = Uuid::new_v4();
+    let mut sessions = state.sessions.lock().await;
+
+    let session_id = Uuid::new_v4();
+
+    let (tx, _rx) = broadcast::channel(100);
+
     sessions.insert(
-        id,
+        session_id,
         Session {
-            members: vec![Member {
-                display_name: form.display_name,
-            }],
+            user_set: RwLock::new(HashSet::new()),
+            tx,
+            expiry: Utc::now() + Duration::hours(1),
         },
     );
 
-    let location = format!("/session/{id}");
+    let location = format!("/session/{session_id}");
 
-    Redirect::to(&location)
+    (
+        StatusCode::SEE_OTHER,
+        AppendHeaders([(LOCATION, location), set_user_cookie(form.display_name)]),
+    )
 }
 
 async fn delete_session() -> impl IntoResponse {
     StatusCode::OK
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug)]
 pub struct Session {
-    members: Vec<Member>,
+    pub user_set: RwLock<HashSet<String>>,
+    // Channel used to send messages to all connected clients.
+    pub tx: broadcast::Sender<String>,
+    pub expiry: DateTime<Utc>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
-struct Member {
-    display_name: String,
+#[derive(Serialize)]
+struct PageData {
+    members: Vec<String>,
+    expiry: DateTime<Utc>,
 }
 
-#[axum::debug_handler]
-async fn get_session(State(state): State<AppState>, Path(id): Path<Uuid>) -> Result<Html<String>> {
-    let sessions = state.sessions.read().unwrap();
+async fn get_session(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<Uuid>,
+) -> Result<Html<String>> {
+    if let Some(session) = state.sessions.lock().await.get(&id) {
+        let user_vec = session
+            .user_set
+            .read()
+            .await
+            .iter()
+            .map(|s| s.to_owned())
+            .collect::<Vec<_>>();
 
-    if let Some(session) = sessions.get(&id) {
+        let data = json!(PageData {
+            members: user_vec,
+            expiry: session.expiry
+        });
+
         let data = json!({
             "title": "Example 1",
             "parent": "layout",
             "cards": [1, 2, 3, 5, 8, 12],
-            "members": session.members
         });
 
         Ok(Html(state.views.render("session_show", &data).unwrap()))

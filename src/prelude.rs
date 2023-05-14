@@ -1,7 +1,7 @@
 use axum::body::BoxBody;
 use axum::http::header::WWW_AUTHENTICATE;
 use axum::http::{HeaderMap, HeaderValue, Response, StatusCode};
-use axum::response::IntoResponse;
+use axum::response::{IntoResponse, Redirect};
 use axum::Json;
 use std::borrow::Cow;
 use std::collections::HashMap;
@@ -60,6 +60,9 @@ pub enum Error {
     /// for security reasons.
     #[error("an internal server error occurred")]
     Anyhow(#[from] anyhow::Error),
+
+    #[error("an internal server error occurred")]
+    Lock(#[from] tokio::sync::TryLockError),
 }
 
 impl Error {
@@ -91,7 +94,7 @@ impl Error {
             Self::Forbidden => StatusCode::FORBIDDEN,
             Self::NotFound { .. } => StatusCode::NOT_FOUND,
             Self::UnprocessableEntity { .. } => StatusCode::UNPROCESSABLE_ENTITY,
-            Self::Anyhow(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::Anyhow(_) | Self::Lock(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 }
@@ -104,6 +107,7 @@ impl Error {
 impl IntoResponse for Error {
     fn into_response(self) -> Response<BoxBody> {
         match self {
+            Self::NotFound(_) => return Redirect::to("/404").into_response(),
             Self::UnprocessableEntity { errors } => {
                 #[derive(serde::Serialize)]
                 struct Errors {
