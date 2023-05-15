@@ -12,7 +12,7 @@ use serde_json::{json, Value};
 use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::AppState;
+use crate::{AppState, Job};
 
 pub async fn ws_handler(
     ws: WebSocketUpgrade,
@@ -29,7 +29,6 @@ async fn websocket(stream: WebSocket, state: Arc<AppState>, session_id: Uuid) {
     // By splitting, we can send and receive at the same time.
     let (mut sender, mut receiver) = stream.split();
 
-    let user_vec = get_user_vec(&state, session_id).await;
     // Username gets set in the receive loop, if it's valid.
     let mut username = String::new();
     // Loop until a text message is found.
@@ -48,13 +47,11 @@ async fn websocket(stream: WebSocket, state: Arc<AppState>, session_id: Uuid) {
                         json!(WSResponse {
                             r#type: "error",
                             payload: json!({ "message": "username taken" }),
-                            users: Some(user_vec),
+                            users: None,
                         })
                         .to_string(),
                     ))
                     .await;
-
-                return;
             }
         }
     }
@@ -76,6 +73,10 @@ async fn websocket(stream: WebSocket, state: Arc<AppState>, session_id: Uuid) {
     let msg =
         json!({"type": "user_joined", "payload": { "username": username }, "users": user_vec.await })
             .to_string();
+
+    // Send keep alive to job broker
+    let job_tx = state.tx.clone();
+    let _ = job_tx.send(Job::KeepAlive(session_id));
 
     tracing::debug!("{}", msg);
 
@@ -175,16 +176,18 @@ async fn get_user_vec(state: &Arc<AppState>, session_id: Uuid) -> Vec<String> {
     user_vec.iter().map(|s| s.to_owned()).collect::<Vec<_>>()
 }
 
+/// removes user from a sessions user set and sends `QueueDelete` to job broker the user set is empty
 async fn remove_user(state: &Arc<AppState>, session_id: Uuid, username: String) {
     // Remove username from map so new clients can take it again.
     let sessions = state.sessions.lock().await;
-    sessions
-        .get(&session_id)
-        .unwrap()
-        .user_set
-        .write()
-        .await
-        .remove(&username);
+    let mut user_set = sessions.get(&session_id).unwrap().user_set.write().await;
+
+    user_set.remove(&username);
+
+    if user_set.is_empty() {
+        let tx = state.tx.clone();
+        let _ = tx.send(Job::QueueDelete(session_id));
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
