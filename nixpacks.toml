@@ -1,5 +1,8 @@
 providers = ["rust", "node"]
 
+[phases.install]
+cmds = ["yarn install"]
+
 [phases.build]
 cmds = ["cargo build"]
 
