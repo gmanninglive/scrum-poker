@@ -1,0 +1,7 @@
+providers = ["rust", "node"]
+
+[phases.build]
+cmds = ["cargo build"]
+
+[start]
+cmd = "cargo run"
