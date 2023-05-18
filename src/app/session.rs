@@ -1,7 +1,6 @@
 use std::{collections::HashSet, net::SocketAddr, sync::Arc};
 
 use axum::{
-    debug_handler,
     extract::{ConnectInfo, Path, State},
     http::{
         header::{LOCATION, SET_COOKIE},
@@ -11,7 +10,7 @@ use axum::{
     routing::{get, post},
     Form, Router,
 };
-use chrono::{DateTime, Duration, Utc};
+
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tokio::sync::{broadcast, RwLock};
@@ -43,7 +42,6 @@ struct CreateSession {
     display_name: String,
 }
 
-#[debug_handler]
 async fn create_session(
     State(state): State<Arc<AppState>>,
     ConnectInfo(_addr): ConnectInfo<SocketAddr>,
@@ -60,7 +58,6 @@ async fn create_session(
         Session {
             user_set: RwLock::new(HashSet::new()),
             tx,
-            expiry: Utc::now() + Duration::hours(1),
         },
     );
 
@@ -81,13 +78,11 @@ pub struct Session {
     pub user_set: RwLock<HashSet<String>>,
     // Channel used to send messages to all connected clients.
     pub tx: broadcast::Sender<String>,
-    pub expiry: DateTime<Utc>,
 }
 
 #[derive(Serialize)]
 struct PageData {
     members: Vec<String>,
-    expiry: DateTime<Utc>,
 }
 
 async fn get_session(
@@ -103,10 +98,7 @@ async fn get_session(
             .map(|s| s.to_owned())
             .collect::<Vec<_>>();
 
-        let _data = json!(PageData {
-            members: user_vec,
-            expiry: session.expiry
-        });
+        let _data = json!(PageData { members: user_vec });
 
         let data = json!({
             "title": "Example 1",

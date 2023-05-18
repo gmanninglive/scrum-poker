@@ -14,10 +14,32 @@ use tower::ServiceBuilder;
 use tower_http::trace::TraceLayer;
 use uuid::Uuid;
 
+pub struct AppState {
+    pub view_env: minijinja::Environment<'static>,
+    pub sessions: Mutex<HashMap<Uuid, Session>>,
+    pub tx: broadcast::Sender<Job>,
+}
+
+#[derive(Debug, Clone)]
+pub enum TaskKind {
+    KeepAlive,
+    QueueDelete,
+    Delete,
+}
+
+#[derive(Debug, Clone)]
+pub enum Job {
+    KeepAlive(Uuid),
+    QueueDelete(Uuid),
+    Drain,
+}
+
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt::init();
+    // Channel for broadcasting session jobs
     let (tx, mut rx) = broadcast::channel::<Job>(100);
+
     let app_state = Arc::new(AppState {
         view_env: views::init(),
         sessions: Mutex::new(HashMap::new()),
@@ -43,7 +65,7 @@ async fn main() {
         }
     });
 
-    // listen for jobs on receiver
+    // listen for and execute jobs from receiver
     tokio::spawn({
         async move {
             while let Ok(job) = rx.recv().await {
@@ -63,27 +85,6 @@ async fn main() {
         .unwrap();
 }
 
-// Define your application shared state
-pub struct AppState {
-    pub view_env: minijinja::Environment<'static>,
-    pub sessions: Mutex<HashMap<Uuid, Session>>,
-    pub tx: broadcast::Sender<Job>,
-}
-
-#[derive(Debug, Clone)]
-pub enum TaskKind {
-    KeepAlive,
-    QueueDelete,
-    Delete,
-}
-
-#[derive(Debug, Clone)]
-pub enum Job {
-    KeepAlive(Uuid),
-    QueueDelete(Uuid),
-    Drain,
-}
-
 #[derive(Clone)]
 struct JobRunner {
     state: Arc<AppState>,
@@ -101,7 +102,6 @@ impl JobRunner {
                     tracing::debug!("Deleted: {:?}", id);
                     sessions.remove(&id);
                 }
-
                 Ok(())
             }
             Job::KeepAlive(id) => {
@@ -110,7 +110,6 @@ impl JobRunner {
             }
             Job::QueueDelete(id) => {
                 self.queued.write().await.insert(id);
-
                 Ok(())
             }
         }

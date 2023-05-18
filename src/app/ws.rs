@@ -8,7 +8,7 @@ use axum::{
 
 use futures::{sink::SinkExt, stream::StreamExt};
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::json;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -46,7 +46,7 @@ async fn websocket(stream: WebSocket, state: Arc<AppState>, session_id: Uuid) {
                     .send(Message::Text(
                         json!(WSResponse {
                             r#type: "error",
-                            payload: json!({ "message": "username taken" }),
+                            payload: Payload::Error(WsError::UsernameTaken),
                             users: None,
                         })
                         .to_string(),
@@ -109,22 +109,28 @@ async fn websocket(stream: WebSocket, state: Arc<AppState>, session_id: Uuid) {
         .unwrap()
         .tx
         .clone();
-    let name = username.clone();
+
     let user_vec = get_user_vec(&state, session_id).await;
 
     // Spawn a task that takes messages from the websocket, prepends the user
     // name, and sends them to all broadcast subscribers.
     let mut recv_task = tokio::spawn(async move {
-        while let Some(Ok(Message::Text(vote))) = receiver.next().await {
-            // Add username before message.
-            let _ = tx.send(
-                json!(WSResponse {
-                    r#type: "user_voted",
-                    payload: json!({ "username": name, "vote": vote }),
-                    users: Some(user_vec.clone())
-                })
-                .to_string(),
-            );
+        while let Some(Ok(Message::Text(message))) = receiver.next().await {
+            if let Ok(message) = serde_json::from_str::<UserMessage>(message.as_str()) {
+                match message {
+                    UserMessage::Vote(vote) => {
+                        // Add username before message.
+                        let _ = tx.send(
+                            json!(WSResponse {
+                                r#type: "user_voted",
+                                payload: Payload::Vote(vote),
+                                users: Some(user_vec.clone())
+                            })
+                            .to_string(),
+                        );
+                    }
+                }
+            };
         }
     });
 
@@ -143,7 +149,9 @@ async fn websocket(stream: WebSocket, state: Arc<AppState>, session_id: Uuid) {
     // Send "user left" message (similar to "joined" above).
     let msg = json!(WSResponse {
         r#type: "user_left",
-        payload: json!({ "user": username }),
+        payload: Payload::Leave {
+            user: username.clone()
+        },
         users: Some(user_vec)
     });
     tracing::debug!("{}", msg);
@@ -190,9 +198,38 @@ async fn remove_user(state: &Arc<AppState>, session_id: Uuid, username: String) 
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
 struct WSResponse {
     r#type: &'static str,
-    payload: Value,
+    payload: Payload,
     users: Option<Vec<String>>,
+}
+
+#[derive(Debug, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
+enum Payload {
+    Error(WsError),
+    Connect { user: String },
+    Leave { user: String },
+    Vote(Vote),
+}
+
+#[derive(Debug, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
+struct Vote {
+    user: String,
+    vote: i32,
+}
+
+#[derive(Debug, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
+enum UserMessage {
+    Vote(Vote),
+}
+
+#[derive(Debug, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
+enum WsError {
+    UsernameTaken,
 }
