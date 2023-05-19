@@ -74,9 +74,9 @@ async fn main() {
         }
     });
 
-    let socket: SocketAddr = match std::env::var("RELEASE") {
-        Ok(_) => "0.0.0.0:3000",
-        Err(_) => "127.0.0.1:3000",
+    let socket: SocketAddr = match std::env::var("PORT") {
+        Ok(port) => format!("0.0.0.0:{port}"),
+        Err(_) => "127.0.0.1:3000".to_owned(),
     }
     .parse()
     .unwrap();
