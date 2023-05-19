@@ -74,7 +74,14 @@ async fn main() {
         }
     });
 
-    axum::Server::bind(&"127.0.0.1:3000".parse().unwrap())
+    let socket: SocketAddr = match std::env::var("RELEASE") {
+        Ok(_) => "0.0.0.0:3000",
+        Err(_) => "127.0.0.1:3000",
+    }
+    .parse()
+    .unwrap();
+
+    axum::Server::bind(&socket)
         .serve(
             app::router()
                 .with_state(app_state)
