@@ -5,7 +5,7 @@ module.exports = config({
     session: __dirname + "/templates/session.ts",
   },
   output: {
-    path: __dirname + "/public/assets/",
+    path: __dirname + "/assets/js/",
   },
   module: {},
 });

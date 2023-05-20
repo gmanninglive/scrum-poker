@@ -37,7 +37,7 @@ if (edit_user_form) {
 }
 
 function init_ws(username: string) {
-  const socket = new WebSocket(`ws://localhost:3000/ws/${id}`);
+  const socket = new WebSocket(`ws://${window.location.host}/ws/${id}`);
 
   socket.addEventListener("open", function (event) {
     socket.send(username);
