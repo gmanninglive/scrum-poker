@@ -1,4 +1,4 @@
-providers = ["node", "rust"]
+providers = ["staticfile", "node", "rust"]
 
 [install]
 cmd = "yarn install"
