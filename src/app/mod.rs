@@ -23,7 +23,10 @@ pub fn router() -> Router<Arc<AppState>> {
             "/500",
             get(|s| async { render_error(s, Error::ServerError("")).await }),
         )
-        .fallback(|s| async { render_error(s, Error::NotFound("")).await })
+        .route(
+            "/404",
+            get(|s| async { render_error(s, Error::NotFound("")).await }),
+        )
         .merge(session::router())
         .route("/ws/:id", get(ws_handler))
 }
