@@ -12,7 +12,6 @@ use axum::{
 use minijinja::Environment;
 use serde::Serialize;
 use serde_json::json;
-use tower_http::services::ServeDir;
 use ws::ws_handler;
 
 use crate::prelude::*;
@@ -25,7 +24,6 @@ pub fn router() -> Router<Arc<AppState>> {
             get(|s| async { render_error(s, Error::ServerError("")).await }),
         )
         .fallback(|s| async { render_error(s, Error::NotFound("")).await })
-        .nest_service("/assets", ServeDir::new("assets"))
         .merge(session::router())
         .route("/ws/:id", get(ws_handler))
 }
