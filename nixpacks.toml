@@ -1,10 +1,10 @@
-providers = ["staticfile", "node", "rust"]
+providers = ["node", "staticfile", "rust"]
 
 [install]
 cmd = "yarn install"
 
 [build]
-cmd = "yarn build && cargo build --release"
+cmd = "cargo build --release"
 
 [start]
 cmd = "./bin/scrum-poker"
