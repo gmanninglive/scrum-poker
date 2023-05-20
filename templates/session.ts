@@ -37,7 +37,11 @@ if (edit_user_form) {
 }
 
 function init_ws(username: string) {
-  const socket = new WebSocket(`ws://${window.location.host}/ws/${id}`);
+  let scheme = window.location.protocol.startsWith("https")
+    ? "wss://"
+    : "ws://";
+
+  const socket = new WebSocket(`${scheme}${window.location.host}/ws/${id}`);
 
   socket.addEventListener("open", function (event) {
     socket.send(username);
