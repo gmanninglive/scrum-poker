@@ -2,8 +2,6 @@ import Cookie from "js-cookie";
 import { WSResponse } from "../bindings/WSResponse";
 import { UserMessage } from "../bindings/UserMessage";
 
-let user_colors: Record<string, string> = {};
-
 let user_list: string[] = [];
 let votes: Record<string, number> = {};
 
@@ -12,6 +10,7 @@ const edit_user_form = document.getElementById("edit_user_form");
 const user_list_container = document.getElementById("user_list_container");
 const user_list_template = document.getElementById("user_node_template");
 const vote_modal = document.getElementById("vote_modal");
+const average_vote = document.getElementById("average_vote");
 
 let username = get_username();
 
@@ -56,16 +55,16 @@ function init_ws(username: string) {
 
     const data: WSResponse = JSON.parse(event.data);
 
-    if ("Vote" in data.payload) {
+    if ("Error" in data.payload) {
+      edit_user_form?.parentElement!.classList.toggle("hidden");
+    } else if ("Vote" in data.payload) {
       const {
         payload: { Vote },
       } = data;
       votes[Vote.user] = Vote.vote;
+    } else {
+      user_list = data.users || [];
     }
-
-    user_list = data.users || [];
-
-    set_user_colors(user_list);
     render_user_list();
   });
 
@@ -84,6 +83,14 @@ function init_ws(username: string) {
     });
   });
 }
+const clear_votes_button = document.getElementById("clear_votes");
+
+clear_votes_button?.addEventListener("click", (e) => {
+  e.preventDefault();
+  votes = {};
+
+  render_user_list();
+});
 
 const next_story_button = document.getElementById("next_story");
 
@@ -93,19 +100,16 @@ next_story_button?.addEventListener("click", (e) => {
   vote_modal?.classList.remove("hidden");
 });
 
-function set_user_colors(users: string[]) {
-  users.forEach((u) => {
-    if (!user_colors[u]) {
-      let rand = Math.floor(Math.random() * 4);
-      let shade = Math.floor(Math.random() * 9) * 100;
-      let color = `${COLORS[rand]}-${shade}`;
+function calc_average() {
+  const arr = Object.values(votes);
+  if (arr.length === 0) {
+    return "...";
+  }
+  const sum = arr.reduce((a, b) => a + b, 0);
 
-      user_colors[u] = color;
-    }
-  });
+  return Math.floor(sum / arr.length);
 }
 
-const COLORS = ["bg-pink", "bg-green", "bg-blue", "bg-red"];
 function render_user_list() {
   if (user_list_container && user_list_template) {
     user_list_container.replaceChildren();
@@ -114,15 +118,19 @@ function render_user_list() {
         //@ts-ignore
         user_list_template.cloneNode(true).content.firstElementChild;
 
-      let badge = template.firstElementChild;
-      badge.innerText = user;
-      badge.classList.add(user_colors[user]);
+      let username_element = template.firstElementChild;
+      username_element.innerText = user;
 
-      const vote_display = template.lastElementChild.firstElementChild;
+      const vote_display = template.lastElementChild;
       const vote = votes[user];
       vote_display.innerText = vote ? `Voted ${vote}` : "Voting...";
 
       user_list_container.appendChild(template);
+
+      if (!!average_vote) {
+        //@ts-ignore
+        (average_vote as any).innerText = calc_average();
+      }
     });
   }
 }
