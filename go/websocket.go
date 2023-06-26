@@ -7,13 +7,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-chi/chi"
 	"golang.org/x/time/rate"
 
 	"nhooyr.io/websocket"
 )
 
-type Session struct {
+type SessionWS struct {
 	// subscriberMessageBuffer controls the max number
 	// of messages that can be queued for a subscriber
 	// before it is kicked.
@@ -29,7 +28,7 @@ type Session struct {
 	logf func(f string, v ...interface{})
 
 	// serveMux routes the various endpoints to the appropriate handler.
-	serveMux chi.Mux
+	serveMux http.ServeMux
 
 	subscribersMu sync.Mutex
 	subscribers   map[*subscriber]struct{}
@@ -37,8 +36,8 @@ type Session struct {
 }
 
 // newSession constructs a Session with the defaults.
-func newSession(state *AppState) *Session {
-	session := &Session{
+func newSession(state *AppState) *SessionWS {
+	session := &SessionWS{
 		state:                   state,
 		subscriberMessageBuffer: 16,
 		logf:                    log.Printf,
@@ -59,13 +58,13 @@ type subscriber struct {
 	closeSlow func()
 }
 
-func (session *Session) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (session *SessionWS) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	session.serveMux.ServeHTTP(w, r)
 }
 
 // subscribeHandler accepts the WebSocket connection and then subscribes
 // it to all future messages.
-func (session *Session) handshake(w http.ResponseWriter, r *http.Request) {
+func (session *SessionWS) handshake(w http.ResponseWriter, r *http.Request) {
 	log.Default().Printf("Opening connection %s", r.RemoteAddr)
 	c, err := websocket.Accept(w, r, nil)
 	if err != nil {
@@ -76,7 +75,7 @@ func (session *Session) handshake(w http.ResponseWriter, r *http.Request) {
 	session.handleConnection(c, r)
 }
 
-func (session *Session) handleConnection(c *websocket.Conn, r *http.Request) {
+func (session *SessionWS) handleConnection(c *websocket.Conn, r *http.Request) {
 	defer c.Close(websocket.StatusInternalError, "")
 
 	go session.subscribe(r.Context(), c)
@@ -94,7 +93,7 @@ func (session *Session) handleConnection(c *websocket.Conn, r *http.Request) {
 	}
 }
 
-func (session *Session) subscribe(ctx context.Context, c *websocket.Conn) error {
+func (session *SessionWS) subscribe(ctx context.Context, c *websocket.Conn) error {
 	s := &subscriber{
 		msgs: make(chan []byte, session.subscriberMessageBuffer),
 		closeSlow: func() {
@@ -120,7 +119,7 @@ func (session *Session) subscribe(ctx context.Context, c *websocket.Conn) error 
 // publish publishes the msg to all subscribers.
 // It never blocks and so messages to slow subscribers
 // are dropped.
-func (session *Session) publish(msg []byte) {
+func (session *SessionWS) publish(msg []byte) {
 	session.subscribersMu.Lock()
 	defer session.subscribersMu.Unlock()
 
@@ -136,14 +135,14 @@ func (session *Session) publish(msg []byte) {
 }
 
 // addSubscriber registers a subscriber.
-func (session *Session) addSubscriber(sub *subscriber) {
+func (session *SessionWS) addSubscriber(sub *subscriber) {
 	session.subscribersMu.Lock()
 	session.subscribers[sub] = struct{}{}
 	session.subscribersMu.Unlock()
 }
 
 // deleteSubscriber deletes the given subscriber.
-func (session *Session) deleteSubscriber(sub *subscriber) {
+func (session *SessionWS) deleteSubscriber(sub *subscriber) {
 	session.subscribersMu.Lock()
 	delete(session.subscribers, sub)
 	session.subscribersMu.Unlock()
