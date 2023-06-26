@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-chi/chi"
 	"golang.org/x/time/rate"
 
 	"nhooyr.io/websocket"
@@ -20,9 +21,7 @@ type Session struct {
 	// Defaults to 16.
 	subscriberMessageBuffer int
 
-	// publishLimiter controls the rate limit applied to the publish endpoint.
-	//
-	// Defaults to one publish every 100ms with a burst of 8.
+	// Defaults to one publish every 100ms with a burst of 10.
 	publishLimiter *rate.Limiter
 
 	// logf controls where logs are sent.
@@ -30,7 +29,7 @@ type Session struct {
 	logf func(f string, v ...interface{})
 
 	// serveMux routes the various endpoints to the appropriate handler.
-	serveMux http.ServeMux
+	serveMux chi.Mux
 
 	subscribersMu sync.Mutex
 	subscribers   map[*subscriber]struct{}
@@ -44,10 +43,10 @@ func newSession(state *AppState) *Session {
 		subscriberMessageBuffer: 16,
 		logf:                    log.Printf,
 		subscribers:             make(map[*subscriber]struct{}),
-		publishLimiter:          rate.NewLimiter(rate.Every(time.Millisecond*100), 8),
+		publishLimiter:          rate.NewLimiter(rate.Every(time.Millisecond*100), 10),
 	}
 
-	session.serveMux.HandleFunc("/", session.subscribeHandler)
+	session.serveMux.HandleFunc("/", session.handshake)
 
 	return session
 }
@@ -66,21 +65,28 @@ func (session *Session) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // subscribeHandler accepts the WebSocket connection and then subscribes
 // it to all future messages.
-func (session *Session) subscribeHandler(w http.ResponseWriter, r *http.Request) {
-	rl := rate.NewLimiter(rate.Every(time.Millisecond*100), 10)
+func (session *Session) handshake(w http.ResponseWriter, r *http.Request) {
+	log.Default().Printf("Opening connection %s", r.RemoteAddr)
 	c, err := websocket.Accept(w, r, nil)
 	if err != nil {
 		session.logf("%v", err)
 		return
 	}
+
+	session.handleConnection(c, r)
+}
+
+func (session *Session) handleConnection(c *websocket.Conn, r *http.Request) {
 	defer c.Close(websocket.StatusInternalError, "")
 
 	go session.subscribe(r.Context(), c)
 
 	for {
-		rl.Wait(r.Context())
-
-		_, b, _ := c.Read(r.Context())
+		_, b, err := c.Read(r.Context())
+		if websocket.CloseStatus(err) == websocket.StatusNormalClosure || websocket.CloseStatus(err) == websocket.StatusGoingAway {
+			log.Default().Printf("Closing connection %s", r.RemoteAddr)
+			return
+		}
 
 		if len(b) > 0 {
 			session.publish(b)
