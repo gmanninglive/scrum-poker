@@ -10,11 +10,12 @@ import (
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
+	"github.com/google/uuid"
 )
 
 type AppState struct {
 	sync.Mutex
-	Sessions map[string]int
+	Sessions map[uuid.UUID]int
 }
 
 type templates map[string]*template.Template
@@ -26,7 +27,7 @@ func main() {
 	}
 
 	state := AppState{
-		Sessions: map[string]int{},
+		Sessions: map[uuid.UUID]int{},
 	}
 
 	r := chi.NewRouter()
@@ -48,7 +49,7 @@ func main() {
 			return
 		}
 
-		id := "test"
+		id, _ := uuid.NewRandom()
 
 		state.Write(id, 1)
 
@@ -63,23 +64,39 @@ func main() {
 			return
 		}
 
-		id := chi.URLParam(r, "id")
+		id, err := uuid.Parse(chi.URLParam(r, "id"))
+		if err != nil {
+			http.Error(w, "Not found", 404)
+			return
+		}
+
 		_, exists := state.Read(id)
 		if !exists {
 			http.Error(w, "Not found", 404)
 			return
 		}
 
-		err := t["session"].Execute(w, nil)
+		err = t["session"].Execute(w, SessionPage{SessionId: id})
 		if err != nil {
 			log.Fatal(err)
 		}
 	})
 
+	r.Mount("/ws/{id}", newSession(&state))
+
 	log.Fatal(http.ListenAndServe(":3000", r))
 }
 
-func (s *AppState) Read(key string) (int, bool) {
+type SessionPage struct {
+	SessionId uuid.UUID
+}
+
+type T struct {
+	Msg  string
+	User string
+}
+
+func (s *AppState) Read(key uuid.UUID) (int, bool) {
 	s.Lock()
 	v, e := s.Sessions[key]
 	s.Unlock()
@@ -87,7 +104,7 @@ func (s *AppState) Read(key string) (int, bool) {
 	return v, e
 }
 
-func (s *AppState) Write(key string, value int) {
+func (s *AppState) Write(key uuid.UUID, value int) {
 	s.Lock()
 	s.Sessions[key] = value
 	s.Unlock()

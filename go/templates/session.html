@@ -1,116 +1,126 @@
 {{template "layout.html" .}} {{define "title"}}Session{{end}} {{define
 "content"}}
-<div class="grid gap-12 w-full max-w-screen-lg mx-auto">
-  <div class="flex justify-between items-center">
-    <h1 class="text-4xl font-black text-white">Session</h1>
-    <div class="flex space-x-4">
-      <button
-        id="clear_votes"
-        class="bg-white rounded-md py-2 px-4 text-xl text-slate-900"
-      >
-        Clear Votes
-      </button>
-      <button
-        id="next_story"
-        class="bg-white rounded-md py-2 px-4 text-xl text-slate-900"
-      >
-        Next Story
-      </button>
-    </div>
-  </div>
-  <div class="p-4 sm:p-6 lg:p-8 bg-white rounded-md">
-    <div class="sm:flex sm:items-center justify-between">
-      <h1 class="text-base font-semibold leading-6 text-gray-900">Members</h1>
-      <div class="flex">
-        <dt>Average:&nbsp;</dt>
-        <dd id="average_vote"></dd>
+<div hx-ext="ws" ws-connect="/ws/{{ .SessionId }}">
+  <form id="form" ws-send="submit" class="py-20">
+    <input name="chat_message" />
+    <button type="submit" class="bg-white text-slate-900 px-4 py-2 rounded-md">
+      Submit
+    </button>
+  </form>
+  <div class="grid gap-12 w-full max-w-screen-lg mx-auto">
+    <div class="flex justify-between items-center">
+      <h1 class="text-4xl font-black text-white">Session</h1>
+      <div class="flex space-x-4">
+        <button
+          id="clear_votes"
+          class="bg-white rounded-md py-2 px-4 text-xl text-slate-900"
+        >
+          Clear Votes
+        </button>
+        <button
+          id="next_story"
+          class="bg-white rounded-md py-2 px-4 text-xl text-slate-900"
+        >
+          Next Story
+        </button>
       </div>
     </div>
-    <div class="mt-8 flow-root">
-      <div class="-mx-4 -my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
-        <div class="inline-block min-w-full py-2 align-middle sm:px-6 lg:px-8">
-          <table class="min-w-full divide-y divide-gray-300">
-            <thead>
-              <tr>
-                <th
-                  scope="col"
-                  class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-0"
-                >
-                  Name
-                </th>
-                <th
-                  scope="col"
-                  class="text-right text-sm font-semibold text-gray-900 py-3.5 pl-3 pr-4 sm:pr-0"
-                >
-                  Vote
-                </th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-gray-200" id="user_list_container">
-              <!-- JS hydration -->
-            </tbody>
-          </table>
+    <div class="p-4 sm:p-6 lg:p-8 bg-white rounded-md">
+      <div class="sm:flex sm:items-center justify-between">
+        <h1 class="text-base font-semibold leading-6 text-gray-900">Members</h1>
+        <div class="flex">
+          <dt>Average:&nbsp;</dt>
+          <dd id="average_vote"></dd>
+        </div>
+      </div>
+      <div class="mt-8 flow-root">
+        <div class="-mx-4 -my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
+          <div
+            class="inline-block min-w-full py-2 align-middle sm:px-6 lg:px-8"
+          >
+            <table class="min-w-full divide-y divide-gray-300">
+              <thead>
+                <tr>
+                  <th
+                    scope="col"
+                    class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-0"
+                  >
+                    Name
+                  </th>
+                  <th
+                    scope="col"
+                    class="text-right text-sm font-semibold text-gray-900 py-3.5 pl-3 pr-4 sm:pr-0"
+                  >
+                    Vote
+                  </th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-200" id="user_list_container">
+                <!-- JS hydration -->
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
   </div>
-</div>
 
-<div
-  class="hidden absolute inset-0 backdrop-blur flex items-center justify-center"
-  id="form_modal"
->
-  <form
-    class="mt-10 px-4 py-5 sm:p-6 sm:w-full sm:max-w-sm space-y-6 bg-white sm:rounded-md"
-    id="edit_user_form"
+  <div
+    class="hidden absolute inset-0 backdrop-blur flex items-center justify-center"
+    id="form_modal"
   >
-    <div>
-      <label
-        for="display_name"
-        class="block text-sm font-medium leading-6 text-gray-900"
-        >Display Name</label
-      >
-      <div class="mt-2">
-        <input
-          id="display_name"
-          type="text"
-          name="display_name"
-          required
-          class="block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-slate-600 sm:text-sm sm:leading-6"
-        />
+    <form
+      class="mt-10 px-4 py-5 sm:p-6 sm:w-full sm:max-w-sm space-y-6 bg-white sm:rounded-md"
+      id="edit_user_form"
+    >
+      <div>
+        <label
+          for="display_name"
+          class="block text-sm font-medium leading-6 text-gray-900"
+          >Display Name</label
+        >
+        <div class="mt-2">
+          <input
+            id="display_name"
+            type="text"
+            name="display_name"
+            required
+            class="block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-slate-600 sm:text-sm sm:leading-6"
+          />
+        </div>
       </div>
-    </div>
-    <div>
-      <button
-        id="edit_user_submit"
-        type="button"
-        class="flex w-full justify-center rounded-md bg-slate-900 px-3 py-1.5 text-sm font-semibold leading-6 text-white shadow-sm hover:bg-slate-500"
-      >
-        Update
-      </button>
-    </div>
-  </form>
-</div>
+      <div>
+        <button
+          id="edit_user_submit"
+          type="button"
+          class="flex w-full justify-center rounded-md bg-slate-900 px-3 py-1.5 text-sm font-semibold leading-6 text-white shadow-sm hover:bg-slate-500"
+        >
+          Update
+        </button>
+      </div>
+    </form>
+  </div>
 
-<template id="user_node_template">
-  <tr>
-    <td
-      class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-0"
-    ></td>
-    <td
-      class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-0"
-    ></td>
-  </tr>
-</template>
+  <template id="user_node_template">
+    <tr>
+      <td
+        class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-0"
+      ></td>
+      <td
+        class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-0"
+      ></td>
+    </tr>
+  </template>
 
-<div
-  class="hidden absolute inset-0 backdrop-blur flex items-center justify-center"
-  id="vote_modal"
->
-  <div class="w-full max-w-sm bg-white shadow sm:rounded-md">
-    <div class="px-4 py-5 sm:p-6">
-      <h4 class="font-bold text-2xl">Vote</h4>
-      <section class="grid grid-cols-1 gap-4 sm:grid-cols-2 mt-4"></section>
+  <div
+    class="hidden absolute inset-0 backdrop-blur flex items-center justify-center"
+    id="vote_modal"
+  >
+    <div class="w-full max-w-sm bg-white shadow sm:rounded-md">
+      <div class="px-4 py-5 sm:p-6">
+        <h4 class="font-bold text-2xl">Vote</h4>
+        <section class="grid grid-cols-1 gap-4 sm:grid-cols-2 mt-4"></section>
+      </div>
     </div>
   </div>
 </div>
